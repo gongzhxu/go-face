@@ -59,21 +59,24 @@ static std::vector<matrix<rgb_pixel>> jitter_image(
 
 class FaceRec {
 public:
-	FaceRec(const char* model_dir) {
+	FaceRec() {
 		detector_ = get_frontal_face_detector();
-
-		std::string dir = model_dir;
-		std::string shape_predictor_path = dir + "/shape_predictor_5_face_landmarks.dat";
-		std::string resnet_path = dir + "/dlib_face_recognition_resnet_model_v1.dat";
-		std::string cnn_resnet_path = dir + "/mmod_human_face_detector.dat";
-
-		deserialize(shape_predictor_path) >> sp_;
-		deserialize(resnet_path) >> net_;
-		deserialize(cnn_resnet_path) >> cnn_net_;
-
 		jittering = 0;
 		size = 150;
 		padding = 0.25;
+	}
+
+	void Deserialize(int type, const uint8_t* buf, int len) {
+		std::vector<uint8_t> vecBuf;
+		vecBuf.insert(vecBuf.end(), buf, buf+len);
+
+		if (type == 0) {
+			deserialize(vecBuf) >> sp_;
+		} else if (type == 1) {
+			deserialize(vecBuf) >> net_;
+		} else if (type == 2) {
+			deserialize(vecBuf) >> cnn_net_;
+		}
 	}
 
 	std::tuple<std::vector<rectangle>, std::vector<descriptor>, std::vector<full_object_detection>>
@@ -149,10 +152,10 @@ private:
 
 // Plain C interface for Go.
 
-facerec* facerec_init(const char* model_dir) {
+facerec* facerec_init() {
 	facerec* rec = (facerec*)calloc(1, sizeof(facerec));
 	try {
-		FaceRec* cls = new FaceRec(model_dir);
+		FaceRec* cls = new FaceRec();
 		rec->cls = (void*)cls;
 	} catch(serialization_error& e) {
 		rec->err_str = strdup(e.what());
@@ -163,6 +166,12 @@ facerec* facerec_init(const char* model_dir) {
 	}
 	return rec;
 }
+
+void facerec_deserialize(facerec* rec, int type, const uint8_t* buf, int len) {
+	FaceRec* cls = (FaceRec*)(rec->cls);
+	cls->Deserialize(type, buf, len);
+}
+
 void facerec_config(facerec* rec, unsigned long size, double padding, int jittering) {
 	FaceRec* cls = (FaceRec*)(rec->cls);
 	cls->Config(size,padding,jittering);

@@ -7,6 +7,7 @@ package face
 // #include "facerec.h"
 import "C"
 import (
+	"fmt"
 	"image"
 	"io/ioutil"
 	"math"
@@ -62,10 +63,8 @@ func NewWithShape(r image.Rectangle, s []image.Point, d Descriptor) Face {
 // NewRecognizer returns a new recognizer interface. modelDir points to
 // directory with shape_predictor_5_face_landmarks.dat and
 // dlib_face_recognition_resnet_model_v1.dat files.
-func NewRecognizer(modelDir string) (rec *Recognizer, err error) {
-	cModelDir := C.CString(modelDir)
-	defer C.free(unsafe.Pointer(cModelDir))
-	ptr := C.facerec_init(cModelDir)
+func NewRecognizer() (rec *Recognizer, err error) {
+	ptr := C.facerec_init()
 
 	if ptr.err_str != nil {
 		defer C.facerec_free(ptr)
@@ -78,8 +77,8 @@ func NewRecognizer(modelDir string) (rec *Recognizer, err error) {
 	return
 }
 
-func NewRecognizerWithConfig(modelDir string, size int, padding float32, jittering int) (rec *Recognizer, err error) {
-	rec, err = NewRecognizer(modelDir)
+func NewRecognizerWithConfig(size int, padding float32, jittering int) (rec *Recognizer, err error) {
+	rec, err = NewRecognizer()
 	if err != nil {
 		return
 	}
@@ -88,6 +87,18 @@ func NewRecognizerWithConfig(modelDir string, size int, padding float32, jitteri
 	cJittering := C.int(jittering)
 	C.facerec_config(rec.ptr, cSize, cPadding, cJittering)
 	return
+}
+
+func (rec *Recognizer) Deserialize(type_ int, buf []byte) error {
+	if len(buf) == 0 {
+		return fmt.Errorf("Empty buf")
+	}
+
+	cType := C.int(type_)
+	cBuf := (*C.uint8_t)(&buf[0])
+	cLen := C.int(len(buf))
+	C.facerec_deserialize(rec.ptr, cType, cBuf, cLen)
+	return nil
 }
 
 func (rec *Recognizer) recognize(type_ int, imgData []byte, maxFaces int) (faces []Face, err error) {
